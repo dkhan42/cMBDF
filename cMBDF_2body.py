@@ -60,7 +60,7 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr,cutoff_r=12.0,n_a
     nrs = m*n
     rstep = cutoff_r/rconvs.shape[-1]
     twob = np.zeros((size,size,nrs))
-    twob_temps = np.zeros((size,size,5))
+    twob_temps = np.zeros((size,size,8))
     
     #threeb = [np.zeros((size, size, size)) for i in range(6)]
 
@@ -72,16 +72,17 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr,cutoff_r=12.0,n_a
             rij_norm=np.linalg.norm(rij)
 
             if rij_norm!=0 and rij_norm<cutoff_r:
+                grad_dist = rij/rij_norm
                 z2 = charges[j]
                 fcutij, gfcut = fcut_with_grad(rij_norm, cutoff_r)
                 ind = rij_norm/rstep
-                #twob[i][j] = rij_norm,np.sqrt(z*z2),fcutij
-                #twob[j][i] = rij_norm,np.sqrt(z*z2),fcutij
                 ac = np.sqrt(z*z2)
                 pref = ac*fcutij
                 #print(ac, fcutij, gfcut)
-                twob_temps[i][j] = ac, fcutij, gfcut, rij_norm, ind
-                twob_temps[j][i] = ac, fcutij, gfcut, rij_norm, ind
+                twob_temps[i][j][:5] = ac, fcutij, gfcut, rij_norm, ind
+                twob_temps[j][i][:5] = ac, fcutij, gfcut, rij_norm, ind
+                twob_temps[i][j][5:] = grad_dist
+                twob_temps[j][i][5:] = -grad_dist             
                 ind = int(ind)
                 id2 = 0
                 for i1 in range(m):
@@ -101,10 +102,10 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr,cutoff_r=12.0,n_a
             
             if j!=i:
                 
-                ac, fcutij, gfcut, rij_norm, ind = twob_temps[i][j]
+                ac, fcutij, gfcut, rij_norm, ind = twob_temps[i][j][:5]
+                grad_dist = -twob_temps[i][j][5:]
                 if ac!=0:
                     ind = int(ind)
-                    grad_dist = (coods[j] - coods[i])/rij_norm
 
                     gradfcut = gfcut*grad_dist
 
@@ -114,49 +115,14 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr,cutoff_r=12.0,n_a
                     for i1 in range(m):
                         for i2 in range(n):
                             grad1 = pref*drconvs[i1][i2][ind]*grad_dist
-                            #grad1 = 1.0
-                            grad2 = twob[i][j][id2]*gradfcut
+                            grad2 = (twob[i][j][id2]*gradfcut)/fcutij
                             twob_grad[i][id2][j] = grad1+grad2
-                            #twob_grad[i][id2][j] = 1.0
 
                             grad_temp[id2] += -(grad1+grad2)
                             id2+=1
 
         twob_grad[i,:,i,:] = grad_temp
-
-                #for k in range(j+1, size):
-                #    rik=atom-coods[k]
-                #    rik_norm=np.linalg.norm(rik)
-#
-                #    if rik_norm!=0 and rik_norm<cutoff_r:
-                #        z3=charges[k]**0.8
-                #        
-                #        rkj=coods[k]-coods[j]
-                #        
-                #        rkj_norm=np.linalg.norm(rkj)
-#
-                #        fcutik, fcutjk =  fcut(rik_norm, cutoff_r), fcut(rkj_norm, cutoff_r)      
-                #        fcut_tot = fcutij*fcutik*fcutjk
-                #        #fcut_tot=1.0
-#
-                #        threeb[0][j][k] = np.minimum(1.0,np.maximum(np.dot(rij,rik)/(rij_norm*rik_norm),-1.0))
-                #        threeb[1][j][k] = np.minimum(1.0,np.maximum(np.dot(rij,rkj)/(rij_norm*rkj_norm),-1.0))
-                #        threeb[2][j][k] = np.minimum(1.0,np.maximum(np.dot(-rkj,rik)/(rkj_norm*rik_norm),-1.0))
-                #        
-                #        atm = (rij_norm*rik_norm*rkj_norm)**2
-                #        
-                #        charge = np.cbrt(z*z2*z3)
-                #        
-                #        threeb[3][j][k], threeb[4][j][k], threeb[5][j][k] =  atm, charge, fcut_tot
-
-    #threeb2 = np.zeros((size,size,size,6))
-#
-    #for i in range(len(threeb)):
-    #    threeb2[:,:,:,i] = threeb[i] + threeb[i].T #above loops populated the upper tetrahedron of the rank 3 tensor, lower is populated by the transpose since the tensors are symmetric
-
-    #return twob, threeb2
    
-
     return twob, twob_grad
 
 
