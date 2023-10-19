@@ -1,5 +1,5 @@
 # cMBDF
-comvolutional MBDF via fast fourier transforms
+convolutional MBDF via fast fourier transforms
 
 Usage :
 
