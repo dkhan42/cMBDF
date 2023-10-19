@@ -172,9 +172,13 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutof
 
                             atm_gradj = -n_atm*(grad_distjk + grad_dist)/atm
 
-                            gang1i = -((cos1*(-(rij_norm*grad_distik) + (rik_norm*grad_dist))) + ((rij+ rik)))/(sin1*rij_norm*rik_norm)
-
-                            gang1j = -(-rik - (grad_dist*cos1*rik_norm))/(sin1*rij_norm*rik_norm)
+                            if sin1==0:
+                                gang1i, gang1j = np.asarray([0.0, 0.0, 0.0]), np.asarray([0.0, 0.0, 0.0])
+                            else:
+                                gang1i = -((cos1*(-(rij_norm*grad_distik) + (rik_norm*grad_dist))) + ((rij+ rik)))/(sin1*rij_norm*rik_norm)
+                                         #-((cos1*(-(rij_norm*grad_distik) - (rik_norm*grad_dist))) + ((rij+ rik)))/(sin1*rij_norm*rik_norm)
+                                gang1j = -(-rik - (grad_dist*cos1*rik_norm))/(sin1*rij_norm*rik_norm)
+                                         #-(-rik + (grad_dist*cos1*rik_norm))/(sin1*rij_norm*rik_norm)
 
                             id2=0
                             for i1 in range(m2):
