@@ -25,7 +25,18 @@ def hermite_polynomial(x, degree, a=1):
         return 32*x1 - 160*x2 + 120*(a*x)
 
 
-@nb.njit(parallel=True)
+@nb.jit(nopython=True)
+def fcut(Rij, rcut): #checked
+    return 0.5*(np.cos((np.pi*Rij)/rcut)+1)
+
+
+@nb.jit(nopython=True)
+def fcut_with_grad(Rij, rcut):
+    arg = (np.pi*Rij)/rcut
+    return 0.5*(np.cos(arg)+1), (-np.pi*np.sin(arg))/(2*rcut)
+
+
+@nb.jit(nopython=True)
 def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutoff_r=12.0,n_atm = 2.0):
     rconvs, drconvs = rconvs_arr[0], rconvs_arr[1]
     aconvs, daconvs = aconvs_arr[0], aconvs_arr[1]
@@ -37,10 +48,10 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutof
     astep = np.pi/(aconvs.shape[-1])
     twob = np.zeros((size,size,nrs))
     threeb = np.zeros((size,size,size,nAs))
-    twob_temps = np.zeros((size,size,6))
-    threeb_temps = np.zeros((size,size,size,7))
+    twob_temps = np.zeros((size,size,8))
+    threeb_temps = np.zeros((size,size,size,9))
 
-    for i in nb.prange(size):
+    for i in range(size):
         z, atom = charges[i], coods[i]
 
         for j in range(i+1,size):
@@ -50,13 +61,15 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutof
             if rij_norm!=0 and rij_norm<cutoff_r:
                 grad_dist = rij/rij_norm
                 z2 = charges[j]
+                arg = (np.pi*rij_norm)/cutoff_r
+                fcutij, gfcut = 0.5*(np.cos(arg)+1), (-np.pi*np.sin(arg))/(2*cutoff_r)
                 ind = rij_norm/rstep
                 ac = np.sqrt(z*z2)
-                pref = ac
-                twob_temps[i][j][:3] = ac, rij_norm, ind
-                twob_temps[j][i][:3] = ac, rij_norm, ind
-                twob_temps[i][j][3:] = grad_dist
-                twob_temps[j][i][3:] = -grad_dist             
+                pref = ac*fcutij
+                twob_temps[i][j][:5] = ac, fcutij, gfcut, rij_norm, ind
+                twob_temps[j][i][:5] = ac, fcutij, gfcut, rij_norm, ind
+                twob_temps[i][j][5:] = grad_dist
+                twob_temps[j][i][5:] = -grad_dist             
                 ind = int(ind)
                 id2 = 0
                 for i1 in range(m1):
@@ -77,14 +90,16 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutof
                         
                         rkj_norm=np.linalg.norm(rkj)
 
+                        fcutik, fcutjk =  fcut(rik_norm, cutoff_r), fcut(rkj_norm, cutoff_r)      
+                        fcut_tot = fcutij*fcutik*fcutjk
+
                         cos1 = np.minimum(1.0,np.maximum(np.dot(rij,rik)/(rij_norm*rik_norm),-1.0))
-                        cos2 = np.minimum(1.0,np.maximum(np.dot(rij,rkj)/(rij_norm*rkj_norm),-1.0))
-                        cos3 = np.minimum(1.0,np.maximum(np.dot(-rkj,rik)/(rkj_norm*rik_norm),-1.0))
+                        cos2 = np.minimum(1.0,np.maximum(np.dot(-rij,-rkj)/(rij_norm*rkj_norm),-1.0))
+                        cos3 = np.minimum(1.0,np.maximum(np.dot(rkj,-rik)/(rkj_norm*rik_norm),-1.0))
 
                         ang1 = np.arccos(cos1)
                         ang2 = np.arccos(cos2)
                         ang3 = np.arccos(cos3)
-
                         sin1, sin2, sin3 = np.abs(np.sin(ang1)), np.abs(np.sin(ang2)), np.abs(np.sin(ang3))
                         
                         ind1 = ang1/astep
@@ -98,21 +113,21 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutof
 
                         charge = np.cbrt(z*z2*z3)
                         
-                        pref = charge
+                        pref = charge*fcut_tot
 
-                        threeb_temps[i][j][k] = charge, pref, atm, atm1, ind1, sin1, cos1
-                        threeb_temps[i][k][j] = charge, pref, atm, atm1, ind1, sin1, cos1
-                        threeb_temps[j][i][k] = charge, pref, atm, atm1, ind2, sin2, cos2
-                        threeb_temps[j][k][i] = charge, pref, atm, atm1, ind2, sin2, cos2
-                        threeb_temps[k][i][j] = charge, pref, atm, atm1, ind3, sin3, cos3
-                        threeb_temps[k][j][i] = charge, pref, atm, atm1, ind3, sin3, cos3
+                        #atm=1.0
+                        threeb_temps[i][j][k] = charge, pref, atm, atm1, ind1, sin1, cos1, cos2, cos3
+                        threeb_temps[i][k][j] = charge, pref, atm, atm1, ind1, sin1, cos1, cos3, cos2
+                        threeb_temps[j][i][k] = charge, pref, atm, atm1, ind2, sin2, cos2, cos1, cos3
+                        threeb_temps[j][k][i] = charge, pref, atm, atm1, ind2, sin2, cos2, cos3, cos1
+                        threeb_temps[k][i][j] = charge, pref, atm, atm1, ind3, sin3, cos3, cos1, cos2
+                        threeb_temps[k][j][i] = charge, pref, atm, atm1, ind3, sin3, cos3, cos2, cos1
 
                         ind1, ind2, ind3 = int(ind1), int(ind2), int(ind3)
 
                         id2=0
                         for i1 in range(m2):
                             for i2 in range(n2):
-
                                 conv1 = (pref*aconvs[i1][i2][ind1])/atm
                                 conv2 = (pref*aconvs[i1][i2][ind2])/atm
                                 conv3 = (pref*aconvs[i1][i2][ind3])/atm
@@ -131,7 +146,7 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutof
     twob_grad = np.zeros((size,nrs,size,3))
     threeb_grad = np.zeros((size,nAs,size,3))
 
-    for i in nb.prange(size):
+    for i in range(size):
         grad_temp = np.zeros((nrs,3))
         agrad_temp = np.zeros((nAs,3))
 
@@ -141,53 +156,59 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutof
 
             if j!=i:
                 
-                ac, rij_norm, ind = twob_temps[i][j][:3]
+                ac, fcutij, gfcutij, rij_norm, ind = twob_temps[i][j][:5]
                 grad_dist = -twob_temps[i][j][5:]
                 if ac!=0:
                     ind = int(ind)
 
+                    gradfcut = gfcutij*grad_dist
 
-                    pref = ac
+                    pref = ac*fcutij
                     id2 = 0
 
                     for i1 in range(m1):
                         for i2 in range(n1):
                             grad1 = pref*drconvs[i1][i2][ind]*grad_dist
-                            twob_grad[i][id2][j] = grad1
+                            grad2 = (twob[i][j][id2]*gradfcut)/fcutij
+                            twob_grad[i][id2][j] = grad1+grad2
 
-                            grad_temp[id2] += -grad1
+                            grad_temp[id2] += -(grad1+grad2)
                             id2+=1
 
                 for k in range(size):
                     if k!=j and k!=i:
                         rkj = coods[k] - coods[j]
                         rik = coods[i] - coods[k]
-                        rik_norm = twob_temps[i][k][1]
-                        ac, pref, atm, atm1, ind1, sin1, cos1  = threeb_temps[i][j][k]
+                        fcutik, gfcutik, rik_norm = twob_temps[i][k][1:4]
+                        fcutjk, gfcutjk, rjk_norm = twob_temps[j][k][1:4]
+                        ac, pref, atm, atm1, ind1, sin1, cos1, cos2, cos3  = threeb_temps[i][j][k]
                         if ac!=0:
-                            grad_distjk, grad_distik = twob_temps[j][k][3:], twob_temps[i][k][3:]
+                            grad_distjk, grad_distik = twob_temps[j][k][5:], twob_temps[i][k][5:]
                             ind1  = int(ind1)
 
-                            atm_gradi = -n_atm*(grad_distik - grad_dist)/atm
+                            temp = gradfcut*fcutik*fcutjk
+                            gradfcuti = -temp + (gfcutik*grad_distik*fcutij*fcutjk)
+                            gradfcutj = temp + (gfcutjk*grad_distjk*fcutik*fcutij)
 
+                            atm_gradi = -n_atm*(grad_distik - grad_dist)/atm
                             atm_gradj = -n_atm*(grad_distjk + grad_dist)/atm
 
-                            if sin1==0:
-                                gang1i, gang1j = np.asarray([0.0, 0.0, 0.0]), np.asarray([0.0, 0.0, 0.0])
-                            else:
-                                gang1i = -((cos1*(-(rij_norm*grad_distik) + (rik_norm*grad_dist))) + ((rij+ rik)))/(sin1*rij_norm*rik_norm)
-                                         #-((cos1*(-(rij_norm*grad_distik) - (rik_norm*grad_dist))) + ((rij+ rik)))/(sin1*rij_norm*rik_norm)
-                                gang1j = -(-rik - (grad_dist*cos1*rik_norm))/(sin1*rij_norm*rik_norm)
-                                         #-(-rik + (grad_dist*cos1*rik_norm))/(sin1*rij_norm*rik_norm)
+                            #if sin1==0.0 or sin1==-0.0:
+                            #    gang1i, gang1j = np.asarray([0.0]*3), np.asarray([0.0]*3)
+                            #else:
+                            #sin1+=astep
+                            gang1i = -((cos1*(-(rij_norm*grad_distik) + (rik_norm*grad_dist))) + ((rij+ rik)))/(sin1*rij_norm*rik_norm + astep)
+                            gang1j = -(-rik - (grad_dist*cos1*rik_norm))/(sin1*rij_norm*rik_norm + astep)
 
                             id2=0
                             for i1 in range(m2):
                                 for i2 in range(n2):
                                     af, daf = aconvs[i1][i2][ind1], daconvs[i1][i2][ind1] 
                                     grad1 = pref*daf
+                                    grad2 = ac*af
                                     grad3 = pref*af
-                                    agrad_temp2[id2] += (grad1*gang1j)/atm + (grad3*atm_gradj)
-                                    agrad_temp[id2] += (grad1*gang1i)/atm + (grad3*atm_gradi)
+                                    agrad_temp2[id2] += ((grad1*gang1j)+(grad2*gradfcutj))/atm + (grad3*atm_gradj)
+                                    agrad_temp[id2] += ((grad1*gang1i)+(grad2*gradfcuti))/atm + (grad3*atm_gradi)
                                     id2+=1
 
             threeb_grad[i,:,j,:] = agrad_temp2
@@ -220,8 +241,9 @@ def generate_data(size,charges,coods,rconvs,aconvs,cutoff_r=12.0,n_atm = 2.0):
 
             if rij_norm!=0 and rij_norm<cutoff_r:
                 z2 = charges[j]
+                fcutij = fcut(rij_norm, cutoff_r)
                 ind = int(rij_norm/rstep)
-                pref = np.sqrt(z*z2)
+                pref = np.sqrt(z*z2)*fcutij
                 
                 id2 = 0
                 for i1 in range(m1):
@@ -242,6 +264,9 @@ def generate_data(size,charges,coods,rconvs,aconvs,cutoff_r=12.0,n_atm = 2.0):
                         
                         rkj_norm=np.linalg.norm(rkj)
 
+                        fcutik, fcutjk =  fcut(rik_norm, cutoff_r), fcut(rkj_norm, cutoff_r)      
+                        fcut_tot = fcutij*fcutik*fcutjk
+
                         cos1 = np.minimum(1.0,np.maximum(np.dot(rij,rik)/(rij_norm*rik_norm),-1.0))
                         cos2 = np.minimum(1.0,np.maximum(np.dot(rij,rkj)/(rij_norm*rkj_norm),-1.0))
                         cos3 = np.minimum(1.0,np.maximum(np.dot(-rkj,rik)/(rkj_norm*rik_norm),-1.0))
@@ -257,7 +282,7 @@ def generate_data(size,charges,coods,rconvs,aconvs,cutoff_r=12.0,n_atm = 2.0):
                         
                         charge = np.cbrt(z*z2*z3)
                         
-                        pref = charge
+                        pref = charge*fcut_tot
 
                         id2=0
                         for i1 in range(m2):
@@ -285,14 +310,15 @@ def generate_data(size,charges,coods,rconvs,aconvs,cutoff_r=12.0,n_atm = 2.0):
     return twob,threeb 
          
 
-def get_cmbdf(charges, coods, convs, pad=None, rcut=8.0, n_atm = 0.8, gradients=True):
+def get_cmbdf(charges, coods, convs, pad=None, rcut=10.0,n_atm = 1.0, gradients=False):
     """"
     returns the local cMBDF representation for a molecule
     """
+    rconvs, aconvs = convs
     size = len(charges)
     if pad==None:
-        pad=size
-    rconvs, aconvs = convs
+        pad = size
+    #nr, na = len(rconvs), len(aconvs)
     m1, n1 = rconvs[0].shape[0], rconvs[0].shape[1]
     m2, n2 = aconvs[0].shape[0], aconvs[0].shape[1]
     nr = m1*n1
@@ -318,7 +344,7 @@ def get_cmbdf(charges, coods, convs, pad=None, rcut=8.0, n_atm = 0.8, gradients=
         return mat
 
 
-def get_convolutions(rstep=0.0008,rcut=8.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0],order=4,a1=2.0,a2=2.0,astep=0.0002,nAs=4,normalized='same',gradients=True):
+def get_convolutions(rstep=0.0008,rcut=10.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0],order=4,a1=2.0,a2=2.0,astep=0.0002,nAs=4,normalized='same',gradients=True):
     """
     returns cMBDF convolutions evaluated via Fast Fourier Transforms
     """
@@ -339,6 +365,7 @@ def get_convolutions(rstep=0.0008,rcut=8.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0]
     
     for i in range(m):
         fm = fms[i]
+        #fm1 = fms[i+1]
         
         temp, dtemp = [], []
         for alpha in alpha_list:
@@ -392,10 +419,70 @@ def get_convolutions(rstep=0.0008,rcut=8.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0]
     if normalized==False:
         return np.asarray([rconvs, drconvs]), np.asarray([aconvs, daconvs])
     
-    else:
+    elif normalized=='same':
         rnorms = [np.max(np.abs(conv)) for conv in rconvs]
         anorms = [np.max(np.abs(conv)) for conv in aconvs]
         return np.asarray([[rconvs[i]/rnorms[i] for i in range(len(rconvs))],
                         [drconvs[i]/rnorms[i] for i in range(len(rconvs))]]), np.asarray([[aconvs[i]/anorms[i] for i in range(len(aconvs))],
-                        [daconvs[i]/anorms[i] for i in range(len(aconvs))]]) 
+                        [daconvs[i]/anorms[i] for i in range(len(aconvs))]])
+
+    elif normalized=='separate':
+        rnorms1 = [np.max(np.abs(conv)) for conv in rconvs]
+        anorms1 = [np.max(np.abs(conv)) for conv in aconvs]
+
+        rnorms2 = [np.max(np.abs(conv)) for conv in drconvs]
+        anorms2 = [np.max(np.abs(conv)) for conv in daconvs]
+        return np.asarray([[rconvs[i]/rnorms1[i] for i in range(len(rconvs))],
+                        [drconvs[i]/rnorms2[i] for i in range(len(rconvs))]]), np.asarray([[aconvs[i]/anorms1[i] for i in range(len(aconvs))],
+                        [daconvs[i]/anorms2[i] for i in range(len(aconvs))]]) 
     
+
+from joblib import Parallel, delayed
+
+def generate_mbdf(nuclear_charges,coords,alpha_list=[1.5,5.0],n_list=[3.0,5.0],gradients=False,local=True,n_jobs=-1,a1=2.0,pad=None,rstep=0.0008,rcut=10.0,astep=0.0002,nAs=4,order=4,progress_bar=False,a2=2.0,normalized='same',n_atm = 1.0):
+    assert nuclear_charges.shape[0] == coords.shape[0], "charges and coordinates array length mis-match"
+    
+    lengths, charges = [], []
+
+    for i in range(len(nuclear_charges)):
+        
+        q, r = nuclear_charges[i], coords[i]
+        
+        assert q.shape[0] == r.shape[0], "charges and coordinates array length mis-match for molecule at index" + str(i)
+
+        lengths.append(len(q))
+
+        charges.append(q.astype(np.float64))
+
+    if pad==None:
+        pad = max(lengths)
+
+    convs = get_convolutions(rstep,rcut,alpha_list,n_list,order,a1,a2,astep,nAs,normalized,gradients)
+
+    if local:
+        if gradients:
+            if progress_bar:
+                from tqdm import tqdm
+                mbdf = Parallel(n_jobs=n_jobs)(delayed(get_cmbdf)(charge, cood, convs, pad, rcut,n_atm, gradients=True) for charge,cood in tqdm(list(zip(charges,coords))))
+
+            else:
+                mbdf = Parallel(n_jobs=n_jobs)(delayed(get_cmbdf)(charge, cood, convs, pad, rcut,n_atm, gradients=True) for charge,cood in list(zip(charges,coords)))
+
+            A, dA = [], []
+            for i in range(len(mbdf)):
+                A.append(mbdf[i][0])
+                dA.append(mbdf[i][1])
+            A, dA = np.array(A), np.array(dA)            
+
+            return A, dA
+
+
+        else:
+            if progress_bar:
+                from tqdm import tqdm
+                reps = Parallel(n_jobs=n_jobs)(delayed(get_cmbdf)(charge, cood, convs, pad, rcut,n_atm, gradients=False) for charge,cood in tqdm(list(zip(charges,coords))))
+
+            else:
+                reps = Parallel(n_jobs=n_jobs)(delayed(get_cmbdf)(charge, cood, convs, pad, rcut,n_atm, gradients=False) for charge,cood in list(zip(charges,coords)))
+
+            return np.asarray(reps)
