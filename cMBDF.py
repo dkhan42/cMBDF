@@ -192,13 +192,12 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutof
 
                             atm_gradi = -n_atm*(grad_distik - grad_dist)/atm
                             atm_gradj = -n_atm*(grad_distjk + grad_dist)/atm
-
-                            #if sin1==0.0 or sin1==-0.0:
-                            #    gang1i, gang1j = np.asarray([0.0]*3), np.asarray([0.0]*3)
-                            #else:
-                            #sin1+=astep
-                            gang1i = -((cos1*(-(rij_norm*grad_distik) + (rik_norm*grad_dist))) + ((rij+ rik)))/(sin1*rij_norm*rik_norm + astep)
-                            gang1j = -(-rik - (grad_dist*cos1*rik_norm))/(sin1*rij_norm*rik_norm + astep)
+                            
+                            denom = sin1*rij_norm*rik_norm
+                            if denom==0:
+                                denom+=1e-8 #dirty fix makes me wanna throw upppppp
+                            gang1i = -((cos1*(-(rij_norm*grad_distik) + (rik_norm*grad_dist))) + ((rij+ rik)))/denom
+                            gang1j = -(-rik - (grad_dist*cos1*rik_norm))/denom
 
                             id2=0
                             for i1 in range(m2):
