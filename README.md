@@ -19,7 +19,7 @@ replace `mol.charges` and `mol.coordinates` with however you get those from the 
 
 Usage (joblib):
 ```
-from cMBDF import get_cmbdf
+from cMBDF_joblib import get_cmbdf
 reps, dreps = cMBDF_joblib.generate_mbdf(mols_charges, mols_coords, gradients=True, progress_bar = True/False)
 ```
 `mols_charges` and `mols_coords` should contain charges and coordinates arrays for multiple molecules to make this efficient.
