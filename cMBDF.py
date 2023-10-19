@@ -4,6 +4,7 @@ from numpy import einsum
 from scipy.signal import fftconvolve
 from scipy.fft import next_fast_len
 
+
 @nb.jit(nopython=True)
 def hermite_polynomial(x, degree, a=1):
     if degree == 1:
@@ -24,17 +25,6 @@ def hermite_polynomial(x, degree, a=1):
         return 32*x1 - 160*x2 + 120*(a*x)
 
 
-@nb.jit(nopython=True)
-def fcut(Rij, rcut): 
-    return 0.5*(np.cos((np.pi*Rij)/rcut)+1)
-
-
-@nb.jit(nopython=True)
-def fcut_with_grad(Rij, rcut):
-    arg = (np.pi*Rij)/rcut
-    return 0.5*(np.cos(arg)+1), (-np.pi*np.sin(arg))/(2*rcut)
-
-
 @nb.njit(parallel=True)
 def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutoff_r=12.0,n_atm = 2.0):
     rconvs, drconvs = rconvs_arr[0], rconvs_arr[1]
@@ -47,11 +37,10 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutof
     astep = np.pi/(aconvs.shape[-1])
     twob = np.zeros((size,size,nrs))
     threeb = np.zeros((size,size,size,nAs))
-    twob_temps = np.zeros((size,size,8))
+    twob_temps = np.zeros((size,size,6))
     threeb_temps = np.zeros((size,size,size,7))
 
     for i in nb.prange(size):
-    #for i in range(size):
         z, atom = charges[i], coods[i]
 
         for j in range(i+1,size):
@@ -61,14 +50,13 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutof
             if rij_norm!=0 and rij_norm<cutoff_r:
                 grad_dist = rij/rij_norm
                 z2 = charges[j]
-                fcutij, gfcut = fcut_with_grad(rij_norm, cutoff_r)
                 ind = rij_norm/rstep
                 ac = np.sqrt(z*z2)
-                pref = ac*fcutij
-                twob_temps[i][j][:5] = ac, fcutij, gfcut, rij_norm, ind
-                twob_temps[j][i][:5] = ac, fcutij, gfcut, rij_norm, ind
-                twob_temps[i][j][5:] = grad_dist
-                twob_temps[j][i][5:] = -grad_dist             
+                pref = ac
+                twob_temps[i][j][:3] = ac, rij_norm, ind
+                twob_temps[j][i][:3] = ac, rij_norm, ind
+                twob_temps[i][j][3:] = grad_dist
+                twob_temps[j][i][3:] = -grad_dist             
                 ind = int(ind)
                 id2 = 0
                 for i1 in range(m1):
@@ -88,10 +76,6 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutof
                         rkj=coods[k]-coods[j]
                         
                         rkj_norm=np.linalg.norm(rkj)
-
-                        fcutik, fcutjk =  fcut(rik_norm, cutoff_r), fcut(rkj_norm, cutoff_r)      
-                        fcut_tot = fcutij*fcutik*fcutjk
-                        fcut_tot=1.0
 
                         cos1 = np.minimum(1.0,np.maximum(np.dot(rij,rik)/(rij_norm*rik_norm),-1.0))
                         cos2 = np.minimum(1.0,np.maximum(np.dot(rij,rkj)/(rij_norm*rkj_norm),-1.0))
@@ -114,7 +98,7 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutof
 
                         charge = np.cbrt(z*z2*z3)
                         
-                        pref = charge*fcut_tot
+                        pref = charge
 
                         threeb_temps[i][j][k] = charge, pref, atm, atm1, ind1, sin1, cos1
                         threeb_temps[i][k][j] = charge, pref, atm, atm1, ind1, sin1, cos1
@@ -157,57 +141,49 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutof
 
             if j!=i:
                 
-                ac, fcutij, gfcutij, rij_norm, ind = twob_temps[i][j][:5]
+                ac, rij_norm, ind = twob_temps[i][j][:3]
                 grad_dist = -twob_temps[i][j][5:]
                 if ac!=0:
                     ind = int(ind)
 
-                    gradfcut = gfcutij*grad_dist
 
-                    pref = ac*fcutij
+                    pref = ac
                     id2 = 0
 
                     for i1 in range(m1):
                         for i2 in range(n1):
                             grad1 = pref*drconvs[i1][i2][ind]*grad_dist
-                            grad2 = (twob[i][j][id2]*gradfcut)/fcutij
-                            twob_grad[i][id2][j] = grad1+grad2
+                            twob_grad[i][id2][j] = grad1
 
-                            grad_temp[id2] += -(grad1+grad2)
+                            grad_temp[id2] += -grad1
                             id2+=1
 
                 for k in range(size):
                     if k!=j and k!=i:
                         rkj = coods[k] - coods[j]
                         rik = coods[i] - coods[k]
-                        fcutik, gfcutik, rik_norm = twob_temps[i][k][1:4]
-                        fcutjk, gfcutjk, rjk_norm = twob_temps[j][k][1:4]
+                        rik_norm = twob_temps[i][k][1]
                         ac, pref, atm, atm1, ind1, sin1, cos1  = threeb_temps[i][j][k]
                         if ac!=0:
-                            grad_distjk, grad_distik = twob_temps[j][k][5:], twob_temps[i][k][5:]
+                            grad_distjk, grad_distik = twob_temps[j][k][3:], twob_temps[i][k][3:]
                             ind1  = int(ind1)
-
-                            temp = gradfcut*fcutik*fcutjk
-                            gradfcuti = -temp + (gfcutik*grad_distik*fcutij*fcutjk)
-                            gradfcutj = temp + (gfcutjk*grad_distjk*fcutik*fcutij)
 
                             atm_gradi = -n_atm*(grad_distik - grad_dist)/atm
 
                             atm_gradj = -n_atm*(grad_distjk + grad_dist)/atm
 
-                            gang1i = -((cos1*(-(rij_norm*grad_distik) + (rik_norm*grad_dist))) + ((rij+ rik)))/(rij_norm*rik_norm)
+                            gang1i = -((cos1*(-(rij_norm*grad_distik) + (rik_norm*grad_dist))) + ((rij+ rik)))/(sin1*rij_norm*rik_norm)
 
-                            gang1j = -(-rik - (grad_dist*cos1*rik_norm))/(rij_norm*rik_norm)
+                            gang1j = -(-rik - (grad_dist*cos1*rik_norm))/(sin1*rij_norm*rik_norm)
 
                             id2=0
                             for i1 in range(m2):
                                 for i2 in range(n2):
                                     af, daf = aconvs[i1][i2][ind1], daconvs[i1][i2][ind1] 
                                     grad1 = pref*daf
-                                    grad2 = ac*af
                                     grad3 = pref*af
-                                    agrad_temp2[id2] += ((grad1*gang1j)+(grad2*gradfcutj))/atm + (grad3*atm_gradj)
-                                    agrad_temp[id2] += ((grad1*gang1i)+(grad2*gradfcuti))/atm + (grad3*atm_gradi)
+                                    agrad_temp2[id2] += (grad1*gang1j)/atm + (grad3*atm_gradj)
+                                    agrad_temp[id2] += (grad1*gang1i)/atm + (grad3*atm_gradi)
                                     id2+=1
 
             threeb_grad[i,:,j,:] = agrad_temp2
