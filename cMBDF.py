@@ -195,7 +195,7 @@ def generate_data_with_gradients(size,charges,coods,rconvs_arr, aconvs_arr,cutof
     return twob, twob_grad, threeb, threeb_grad
 
 
-@nb.njit(parallel=True)
+@nb.jit(nopython=True)
 def generate_data(size,charges,coods,rconvs,aconvs,cutoff_r=12.0,n_atm = 2.0):
     rconvs, aconvs = rconvs[0], aconvs[0]
     m1, n1 = rconvs.shape[0], rconvs.shape[1]
@@ -207,7 +207,7 @@ def generate_data(size,charges,coods,rconvs,aconvs,cutoff_r=12.0,n_atm = 2.0):
     twob = np.zeros((size,size,nrs))
     threeb = np.zeros((size,size,size,nAs))
 
-    for i in nb.prange(size):
+    for i in range(size):
         z, atom = charges[i], coods[i]
 
         for j in range(i+1,size):
@@ -216,9 +216,8 @@ def generate_data(size,charges,coods,rconvs,aconvs,cutoff_r=12.0,n_atm = 2.0):
 
             if rij_norm!=0 and rij_norm<cutoff_r:
                 z2 = charges[j]
-                fcutij = fcut(rij_norm, cutoff_r)
                 ind = int(rij_norm/rstep)
-                pref = np.sqrt(z*z2)*fcutij
+                pref = np.sqrt(z*z2)
                 
                 id2 = 0
                 for i1 in range(m1):
@@ -239,13 +238,9 @@ def generate_data(size,charges,coods,rconvs,aconvs,cutoff_r=12.0,n_atm = 2.0):
                         
                         rkj_norm=np.linalg.norm(rkj)
 
-                        fcutik, fcutjk =  fcut(rik_norm, cutoff_r), fcut(rkj_norm, cutoff_r)      
-                        fcut_tot = fcutij*fcutik*fcutjk
-
                         cos1 = np.minimum(1.0,np.maximum(np.dot(rij,rik)/(rij_norm*rik_norm),-1.0))
                         cos2 = np.minimum(1.0,np.maximum(np.dot(rij,rkj)/(rij_norm*rkj_norm),-1.0))
                         cos3 = np.minimum(1.0,np.maximum(np.dot(-rkj,rik)/(rkj_norm*rik_norm),-1.0))
-
                         ang1 = np.arccos(cos1)
                         ang2 = np.arccos(cos2)
                         ang3 = np.arccos(cos3)
@@ -254,11 +249,11 @@ def generate_data(size,charges,coods,rconvs,aconvs,cutoff_r=12.0,n_atm = 2.0):
                         ind2 = int(ang2/astep)
                         ind3 = int(ang3/astep)
 
-                        atm = np.exp(n_atm*(rij_norm + rik_norm + rkj_norm))
+                        atm = (rij_norm*rik_norm*rkj_norm)**n_atm
                         
                         charge = np.cbrt(z*z2*z3)
                         
-                        pref = charge*fcut_tot
+                        pref = charge
 
                         id2=0
                         for i1 in range(m2):
