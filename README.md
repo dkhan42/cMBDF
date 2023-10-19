@@ -8,7 +8,7 @@ from cMBDF import get_convolutions, get_cmbdf
 
 convs = get_convolutions(gradients=True) #only needs to be done once, can also store it as .npy 
 
-pad_size = max([len(mol.charges) for mol in mols])
+pad_size = max([len(mol.charges) for mol in mols]) #if not provided, defaults to molecule size with no padding
 rep, drep = [], []
 for mol in mols:
     r, dr = get_cmbdf(mol.charges,mol.coordinates,convs,pad_size,gradients=True)
