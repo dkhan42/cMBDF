@@ -282,7 +282,7 @@ def get_cmbdf(charges, coods, rconvs, pad, rcut=12.0,n_atm = 2.0, aconvs=None, g
 
 from joblib import Parallel, delayed
 
-def generate_mbdf(nuclear_charges,coords,alpha_list,n_list,gradients=False,local=True,n_jobs=-1,a1=0.5,pad=None,rstep=0.01,rcut=12.0,astep=0.02,nAs=4,order=4,alpha=1.5,progress_bar=False,a2=None,normalized=True,n_atm = None):
+def generate_mbdf(nuclear_charges,coords,alpha_list=[1.5,5.0],n_list=[3.0,5.0],gradients=False,local=True,n_jobs=-1,a1=2.0,pad=None,rstep=0.001,rcut=12.0,astep=0.02,nAs=4,order=4,alpha=1.5,progress_bar=False,a2=None,normalized=True,n_atm = None):
     assert nuclear_charges.shape[0] == coords.shape[0], "charges and coordinates array length mis-match"
     
     lengths, charges = [], []
