@@ -392,7 +392,7 @@ def get_convolutions(rstep=0.0008,rcut=10.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0
     drconvs = np.concatenate((np.asarray(dtemp1),np.asarray(dtemp2)),axis=1)
 
     size = len(agrid)
-    gaussian = np.exp(-a1*(agrid**2))
+    gaussian = np.exp(-a2*(agrid**2))
 
     m = order+1
 
