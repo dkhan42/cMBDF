@@ -240,9 +240,8 @@ def generate_data(size,charges,coods,rconvs,aconvs,cutoff_r=12.0,n_atm = 2.0):
 
             if rij_norm!=0 and rij_norm<cutoff_r:
                 z2 = charges[j]
-                fcutij = fcut(rij_norm, cutoff_r)
                 ind = int(rij_norm/rstep)
-                pref = np.sqrt(z*z2)*fcutij
+                pref = np.sqrt(z*z2)
                 
                 id2 = 0
                 for i1 in range(m1):
@@ -263,9 +262,6 @@ def generate_data(size,charges,coods,rconvs,aconvs,cutoff_r=12.0,n_atm = 2.0):
                         
                         rkj_norm=np.linalg.norm(rkj)
 
-                        fcutik, fcutjk =  fcut(rik_norm, cutoff_r), fcut(rkj_norm, cutoff_r)      
-                        fcut_tot = fcutij*fcutik*fcutjk
-
                         cos1 = np.minimum(1.0,np.maximum(np.dot(rij,rik)/(rij_norm*rik_norm),-1.0))
                         cos2 = np.minimum(1.0,np.maximum(np.dot(rij,rkj)/(rij_norm*rkj_norm),-1.0))
                         cos3 = np.minimum(1.0,np.maximum(np.dot(-rkj,rik)/(rkj_norm*rik_norm),-1.0))
@@ -281,12 +277,12 @@ def generate_data(size,charges,coods,rconvs,aconvs,cutoff_r=12.0,n_atm = 2.0):
                         
                         charge = np.cbrt(z*z2*z3)
                         
-                        pref = charge*fcut_tot
+                        pref = charge
 
                         id2=0
                         for i1 in range(m2):
                             for i2 in range(n2):
-                                if i2==1:
+                                if i2==0:
                                     conv1 = (pref*aconvs[i1][i2][ind1]*cos2*cos3)/atm
                                     conv2 = (pref*aconvs[i1][i2][ind2]*cos1*cos3)/atm
                                     conv3 = (pref*aconvs[i1][i2][ind3]*cos2*cos1)/atm
@@ -307,7 +303,7 @@ def generate_data(size,charges,coods,rconvs,aconvs,cutoff_r=12.0,n_atm = 2.0):
                                 id2+=1
 
     return twob,threeb 
-         
+
 
 def get_cmbdf(charges, coods, convs, pad=None, rcut=10.0,n_atm = 1.0, gradients=False):
     """"
@@ -324,6 +320,7 @@ def get_cmbdf(charges, coods, convs, pad=None, rcut=10.0,n_atm = 1.0, gradients=
     na = m2*n2
     desc_size = nr+na
     mat=np.zeros((pad,desc_size))
+    #alc = alc_scaling(charges)
 
     assert size > 2, "No implementation for mono and diatomics yet"
 
@@ -341,7 +338,48 @@ def get_cmbdf(charges, coods, convs, pad=None, rcut=10.0,n_atm = 1.0, gradients=
         mat[:size,:nr] = einsum('ij... -> i...',twob)
         mat[:size,nr:] = einsum('ijk... -> i...',threeb)
         return mat
+    
+def get_cmbdf_global(charges, coods, asize,rep_size,keys, convs, rcut=10.0,n_atm = 1.0):
+    """
+    returns the flattened, bagged cMBDF feature vector for a molecule
+    """
+    rconvs, aconvs = convs
+    size = len(charges)
 
+    assert size > 2, "No implementation for mono and diatomics yet"
+
+    elements = {k:[] for k in keys}
+
+    for i in range(size):
+        elements[charges[i]].append(i)
+
+    m1, n1 = rconvs[0].shape[0], rconvs[0].shape[1]
+    m2, n2 = aconvs[0].shape[0], aconvs[0].shape[1]
+    nr = m1*n1
+    na = m2*n2
+    desc_size = nr+na
+
+    mat, ind = np.zeros((rep_size,desc_size)), 0
+    #alc = alc_scaling(charges)
+
+    twob, threeb = generate_data(size,charges,coods,rconvs,aconvs,rcut,n_atm)
+
+    for key in keys:
+
+        num = len(elements[key])
+
+        bags = np.zeros((num,desc_size))
+
+        if num!=0:
+
+            bags[:,:nr] = einsum('ij... -> i...',twob[elements[key]])
+            bags[:,nr:] = einsum('ijk... -> i...',threeb[elements[key]])
+
+            mat[ind:ind+num] = -np.sort(-bags,axis=0)
+
+        ind += asize[key]
+
+    return mat.ravel(order='F')
 
 def get_convolutions(rstep=0.0008,rcut=10.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0],order=4,a1=2.0,a2=2.0,astep=0.0002,nAs=4,normalized='same',gradients=True):
     """
@@ -485,3 +523,20 @@ def generate_mbdf(nuclear_charges,coords,alpha_list=[1.5,5.0],n_list=[3.0,5.0],g
                 reps = Parallel(n_jobs=n_jobs)(delayed(get_cmbdf)(charge, cood, convs, pad, rcut,n_atm, gradients=False) for charge,cood in list(zip(charges,coords)))
 
             return np.asarray(reps)
+        
+    else:
+        keys = np.unique(np.concatenate(charges))
+
+        asize = {key:max([(mol == key).sum() for mol in charges]) for key in keys}
+
+        rep_size = sum(asize.values())
+
+        if progress_bar:
+            from tqdm import tqdm
+            reps = Parallel(n_jobs=n_jobs)(delayed(get_cmbdf_global)(charge, cood,asize,rep_size,keys, convs, rcut,n_atm) for charge,cood in tqdm(list(zip(charges,coords))))
+
+        else:
+            reps = Parallel(n_jobs=n_jobs)(delayed(get_cmbdf_global)(charge, cood, asize,rep_size,keys, convs, pad, rcut,n_atm) for charge,cood in list(zip(charges,coords)))
+        
+        return np.asarray(reps)  
+
