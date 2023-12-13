@@ -476,7 +476,7 @@ def get_convolutions(rstep=0.0008,rcut=10.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0
 
 from joblib import Parallel, delayed
 
-def generate_mbdf(nuclear_charges,coords,alpha_list=[1.5,5.0],n_list=[3.0,5.0],gradients=False,local=True,n_jobs=-1,a1=2.0,pad=None,rstep=0.0008,rcut=10.0,astep=0.0002,nAs=4,order=4,progress_bar=False,a2=2.0,normalized='same',n_atm = 1.0):
+def generate_mbdf(nuclear_charges,coords,alpha_list=[1.5,5.0],n_list=[3.0,5.0],gradients=False,local=True,n_jobs=-1,a1=2.0,pad=None,rstep=0.0008,rcut=10.0,astep=0.0002,nAs=4,order=4,progress_bar=False,a2=2.0,normalized='same',n_atm = 2.0):
     assert nuclear_charges.shape[0] == coords.shape[0], "charges and coordinates array length mis-match"
     
     lengths, charges = [], []
