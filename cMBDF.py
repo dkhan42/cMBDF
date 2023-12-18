@@ -14,7 +14,7 @@ def hermite_polynomial(x, degree, a=1):
         return 4*x1 - 2*a
     elif degree == 3:
         x1 = (a*x)**3
-        return -8*x1 - 12*a*x
+        return -8*x1 + 12*a*x
     elif degree == 4:
         x1 = (a*x)**4
         x2 = (a*x)**2
@@ -22,7 +22,20 @@ def hermite_polynomial(x, degree, a=1):
     elif degree == 5:
         x1 = (a*x)**5
         x2 = (a*x)**3
-        return 32*x1 - 160*x2 + 120*(a*x)
+        return -32*x1 + 160*x2 - 120*(a*x)
+    
+@nb.jit(nopython=True)
+def chebyshev_polynomial(x, degree):
+    if degree==1:
+        return x
+    elif degree==2:
+        return 2*(x**2) - 1
+    elif degree==3:
+        return 4*(x**3) - 3*x
+    elif degree==4:
+        return 8*((x**4) - (x**2)) + 1
+    elif degree==5:
+        return 16*(x**5) - 20*(x**3) + 5*x
 
 
 @nb.jit(nopython=True)
@@ -381,24 +394,26 @@ def get_cmbdf_global(charges, coods, asize,rep_size,keys, convs, rcut=10.0,n_atm
 
     return mat.ravel(order='F')
 
-def get_convolutions(rstep=0.0008,rcut=10.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0],order=4,a1=2.0,a2=2.0,astep=0.0002,nAs=4,normalized='same',gradients=True):
+def get_convolutions(rstep=0.0008,rcut=10.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0],order=4,a1=2.0,a2=2.0,astep=0.0002,nAs=4,gradients=True):
     """
     returns cMBDF convolutions evaluated via Fast Fourier Transforms
     """
     step_r = rcut/next_fast_len(int(rcut/rstep))
     astep = np.pi/next_fast_len(int(np.pi/astep))
     rgrid = np.arange(0.0,rcut, step_r)
+    rgrid2 = np.arange(-rcut,rcut, step_r)
     agrid = np.arange(0.0,np.pi,astep)
+    agrid2 = np.arange(-np.pi,np.pi,astep)
 
     size = len(rgrid)
-    gaussian = np.exp(-a1*(rgrid**2))
+    gaussian = np.exp(-a1*(rgrid2**2))
 
     m = order+1
 
     temp1, temp2 = [], []
     dtemp1, dtemp2 = [], []
 
-    fms = [gaussian, *[gaussian*hermite_polynomial(rgrid,i,a1) for i in range(1,m+1)]]
+    fms = [gaussian, *[gaussian*hermite_polynomial(rgrid2,i,a1) for i in range(1,m+1)]]
     
     for i in range(m):
         fm = fms[i]
@@ -407,7 +422,8 @@ def get_convolutions(rstep=0.0008,rcut=10.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0
         temp, dtemp = [], []
         for alpha in alpha_list:
             gn = np.exp(-alpha*rgrid)
-            arr = fftconvolve(gn, fm, mode='full')[:size]*step_r
+            arr = fftconvolve(gn, fm, mode='same')*step_r
+            arr = arr/np.max(np.abs(arr))
             temp.append(arr)
             darr = np.gradient(arr,step_r)
             #darr = -fftconvolve(gn, fm1, mode='full')[:size]*step_r
@@ -418,7 +434,8 @@ def get_convolutions(rstep=0.0008,rcut=10.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0
         temp, dtemp = [], []
         for n in n_list:
             gn = 2.2508*((rgrid+1)**n)
-            arr = fftconvolve(1/gn, fm, mode='full')[:size]*step_r
+            arr = fftconvolve(1/gn, fm, mode='same')[:size]*step_r
+            arr = arr/np.max(np.abs(arr))
             temp.append(arr)
             darr = np.gradient(arr,step_r)
             #darr = -fftconvolve(1/gn, fm1, mode='full')[:size]*step_r
@@ -430,13 +447,13 @@ def get_convolutions(rstep=0.0008,rcut=10.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0
     drconvs = np.concatenate((np.asarray(dtemp1),np.asarray(dtemp2)),axis=1)
 
     size = len(agrid)
-    gaussian = np.exp(-a2*(agrid**2))
+    gaussian = np.exp(-a2*(agrid2**2))
 
     m = order+1
 
     temp1, dtemp1 = [], []
 
-    fms = [gaussian, *[gaussian*hermite_polynomial(agrid,i,a2) for i in range(1,m+1)]]
+    fms = [gaussian, *[gaussian*hermite_polynomial(agrid2,i,a2) for i in range(1,m+1)]]
     
     for i in range(m):
         fm = fms[i]
@@ -444,7 +461,9 @@ def get_convolutions(rstep=0.0008,rcut=10.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0
         temp, dtemp = [], []
         for n in range(1,nAs+1):
             gn = np.cos(n*agrid)
-            arr = fftconvolve(gn, fm, mode='full')[:size]*astep
+            #gn = chebyshev_polynomial(agrid,n)
+            arr = fftconvolve(gn, fm, mode='same')*astep
+            arr = arr/np.max(np.abs(arr))
             temp.append(arr)
             darr = np.gradient(arr,astep)
             dtemp.append(darr)
@@ -453,30 +472,11 @@ def get_convolutions(rstep=0.0008,rcut=10.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0
 
     aconvs, daconvs = np.asarray(temp1), np.asarray(dtemp1)
 
-    if normalized==False:
-        return np.asarray([rconvs, drconvs]), np.asarray([aconvs, daconvs])
-    
-    elif normalized=='same':
-        rnorms = [np.max(np.abs(conv)) for conv in rconvs]
-        anorms = [np.max(np.abs(conv)) for conv in aconvs]
-        return np.asarray([[rconvs[i]/rnorms[i] for i in range(len(rconvs))],
-                        [drconvs[i]/rnorms[i] for i in range(len(rconvs))]]), np.asarray([[aconvs[i]/anorms[i] for i in range(len(aconvs))],
-                        [daconvs[i]/anorms[i] for i in range(len(aconvs))]])
-
-    elif normalized=='separate':
-        rnorms1 = [np.max(np.abs(conv)) for conv in rconvs]
-        anorms1 = [np.max(np.abs(conv)) for conv in aconvs]
-
-        rnorms2 = [np.max(np.abs(conv)) for conv in drconvs]
-        anorms2 = [np.max(np.abs(conv)) for conv in daconvs]
-        return np.asarray([[rconvs[i]/rnorms1[i] for i in range(len(rconvs))],
-                        [drconvs[i]/rnorms2[i] for i in range(len(rconvs))]]), np.asarray([[aconvs[i]/anorms1[i] for i in range(len(aconvs))],
-                        [daconvs[i]/anorms2[i] for i in range(len(aconvs))]]) 
-    
+    return np.asarray([rconvs, drconvs]), np.asarray([aconvs, daconvs])
 
 from joblib import Parallel, delayed
 
-def generate_mbdf(nuclear_charges,coords,alpha_list=[1.5,5.0],n_list=[3.0,5.0],gradients=False,local=True,n_jobs=-1,a1=2.0,pad=None,rstep=0.0008,rcut=10.0,astep=0.0002,nAs=4,order=4,progress_bar=False,a2=2.0,normalized='same',n_atm = 2.0):
+def generate_mbdf(nuclear_charges,coords,alpha_list=[1.5,5.0],n_list=[3.0,5.0],gradients=False,local=True,n_jobs=-1,a1=2.0,pad=None,rstep=0.0008,rcut=10.0,astep=0.0002,nAs=4,order=4,progress_bar=False,a2=2.0,n_atm = 2.0):
     assert nuclear_charges.shape[0] == coords.shape[0], "charges and coordinates array length mis-match"
     
     lengths, charges = [], []
@@ -494,7 +494,7 @@ def generate_mbdf(nuclear_charges,coords,alpha_list=[1.5,5.0],n_list=[3.0,5.0],g
     if pad==None:
         pad = max(lengths)
 
-    convs = get_convolutions(rstep,rcut,alpha_list,n_list,order,a1,a2,astep,nAs,normalized,gradients)
+    convs = get_convolutions(rstep,rcut,alpha_list,n_list,order,a1,a2,astep,nAs,gradients)
 
     if local:
         if gradients:
