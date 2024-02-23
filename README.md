@@ -1,7 +1,15 @@
 # cMBDF
 convolutional MBDF via fast fourier transforms
 
-Usage :
+
+Usage similar to original MBDF (joblib):
+```
+from cMBDF import generate_mbdf
+reps, dreps = generate_mbdf(mols_charges, mols_coords, gradients=True, progress_bar = True/False)
+```
+`mols_charges` and `mols_coords` should contain charges and coordinates arrays for multiple molecules to make this efficient.
+
+Usage (on the fly with gradients) :
 
 ```
 from cMBDF import get_convolutions, get_cmbdf
@@ -16,10 +24,3 @@ for mol in mols:
     drep.append(dr)
 ```
 replace `mol.charges` and `mol.coordinates` with however you get those from the `mol` object
-
-Usage (joblib):
-```
-from cMBDF import generate_mbdf
-reps, dreps = generate_mbdf(mols_charges, mols_coords, gradients=True, progress_bar = True/False)
-```
-`mols_charges` and `mols_coords` should contain charges and coordinates arrays for multiple molecules to make this efficient.
