@@ -6,6 +6,7 @@ Usage similar to original MBDF (joblib):
 ```
 from cMBDF import generate_mbdf
 reps = generate_mbdf(mols_charges, mols_coords)
+reps_global = generate_mbdf(mols_charges, mols_coords, local=False) #to get flattened feature vectors
 ```
 `mols_charges` and `mols_coords` should contain charges and coordinates arrays for multiple molecules to make this efficient.
 
