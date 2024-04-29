@@ -536,7 +536,7 @@ def generate_mbdf(nuclear_charges,coords,alpha_list=[1.5,5.0],n_list=[3.0,5.0],g
             reps = Parallel(n_jobs=n_jobs)(delayed(get_cmbdf_global)(charge, cood,asize,rep_size,keys, convs, rcut,n_atm) for charge,cood in tqdm(list(zip(charges,coords))))
 
         else:
-            reps = Parallel(n_jobs=n_jobs)(delayed(get_cmbdf_global)(charge, cood, asize,rep_size,keys, convs, pad, rcut,n_atm) for charge,cood in list(zip(charges,coords)))
+            reps = Parallel(n_jobs=n_jobs)(delayed(get_cmbdf_global)(charge, cood, asize,rep_size,keys, convs,rcut,n_atm) for charge,cood in list(zip(charges,coords)))
         
         return np.asarray(reps)  
 
