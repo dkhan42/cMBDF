@@ -334,9 +334,7 @@ def get_cmbdf(charges, coods, convs, pad=None, rcut=10.0,n_atm = 1.0, gradients=
     desc_size = nr+na
     mat=np.zeros((pad,desc_size))
     #alc = alc_scaling(charges)
-
-    assert size > 2, "No implementation for mono and diatomics yet"
-
+    
     if gradients:
         dmat = np.zeros((pad,desc_size,pad,3))
         twob, twob_grad, threeb, threeb_grad = generate_data_with_gradients(size, charges,coods,rconvs, aconvs,rcut,n_atm)
