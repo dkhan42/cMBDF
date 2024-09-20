@@ -25,5 +25,4 @@ for q,r in zip(mols_charges, mols_coords):
     drep.append(dr)
 ```
 Note that there is currently some problem in the `get_cmbdf` function which does not allow using `Numba`'s `prange` parallelization option.
-\\
 Hence I provide the `generate_mbdf` function which uses `joblib`'s parallelisation. A fix would be appreciated!
