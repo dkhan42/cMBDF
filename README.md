@@ -15,13 +15,15 @@ Usage (on the fly with gradients) :
 ```
 from cMBDF import get_convolutions, get_cmbdf
 
-convs = get_convolutions(gradients=True) #only needs to be done once, can also store it as .npy 
+convs = get_convolutions(gradients=True) #only needs to be done once since the convolutions are unique, can also store it as .npy 
 
-pad_size = max([len(mol.charges) for mol in mols]) #if not provided, defaults to molecule size with no padding
+pad_size = max([len(q) for q in mols_charges]) #if not provided, defaults to molecule size with no padding
 rep, drep = [], []
-for mol in mols:
-    r, dr = get_cmbdf(mol.charges,mol.coordinates,convs,pad_size,gradients=True)
+for q,r in zip(mols_charges, mols_coords):
+    r, dr = get_cmbdf(q,r,convs,pad_size,gradients=True)
     rep.append(r)
     drep.append(dr)
 ```
-replace `mol.charges` and `mol.coordinates` with however you get those from the `mol` object
+Note that there is currently some problem in the `get_cmbdf` function which does not allow using `Numba`'s `prange` parallelization option.
+\\
+Hence I provide the `generate_mbdf` function which uses `joblib`'s parallelisation. A fix would be appreciated!
