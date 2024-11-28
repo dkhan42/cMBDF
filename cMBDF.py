@@ -404,14 +404,14 @@ def get_convolutions(rstep=0.0008,rcut=10.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0
     agrid2 = np.arange(-np.pi,np.pi,astep)
 
     size = len(rgrid)
-    gaussian = np.exp(-a1*(rgrid2**2))
+    gaussian = np.exp(-a1*(rgrid2**2))*np.sqrt(a1/np.pi)
 
     m = order+1
 
     temp1, temp2 = [], []
     dtemp1, dtemp2 = [], []
 
-    fms = [gaussian, *[gaussian*hermite_polynomial(rgrid2,i,a1) for i in range(1,m+1)]]
+    fms = [gaussian, *[gaussian*hermite_polynomial(rgrid2,i,np.sqrt(a1))*((-np.sqrt(a1))**m) for i in range(1,m+1)]]
     
     for i in range(m):
         fm = fms[i]
@@ -445,13 +445,13 @@ def get_convolutions(rstep=0.0008,rcut=10.0,alpha_list=[1.5,5.0],n_list=[3.0,5.0
     drconvs = np.concatenate((np.asarray(dtemp1),np.asarray(dtemp2)),axis=1)
 
     size = len(agrid)
-    gaussian = np.exp(-a2*(agrid2**2))
+    gaussian = np.exp(-a2*(agrid2**2))*np.sqrt(a2/np.pi)
 
     m = order+1
 
     temp1, dtemp1 = [], []
 
-    fms = [gaussian, *[gaussian*hermite_polynomial(agrid2,i,a2) for i in range(1,m+1)]]
+    fms = [gaussian, *[gaussian*hermite_polynomial(agrid2,i,np.sqrt(a2))*((-np.sqrt(a2))**m) for i in range(1,m+1)]]
     
     for i in range(m):
         fm = fms[i]
