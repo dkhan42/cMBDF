@@ -26,3 +26,11 @@ for q,r in zip(mols_charges, mols_coords):
 ```
 Note that there is currently some problem in the `get_cmbdf` function which does not allow using `Numba`'s `prange` parallelization option.
 Hence I provide the `generate_mbdf` function which uses `joblib`'s parallelisation. A fix would be appreciated!
+
+# References
+Please cite following work :
+
+Danish Khan, O. Anatole von Lilienfeld; Generalized convolutional many body distribution functional representations. arXiv:2409.20471
+
+
+Danish Khan, Stefan Heinen, O. Anatole von Lilienfeld; Kernel based quantum machine learning at record rate: Many-body distribution functionals as compact representations. J. Chem. Phys. 21 July 2023; 159 (3): 034106. https://doi.org/10.1063/5.0152215
