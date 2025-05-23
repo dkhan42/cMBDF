@@ -2,7 +2,7 @@
 convolutional MBDF via fast fourier transforms
 
 
-Usage similar to original MBDF (joblib):
+Usage similar to original MBDF (joblib) for entire dataset:
 ```
 from cMBDF import generate_mbdf
 reps = generate_mbdf(mols_charges, mols_coords, progress_bar=True) #to get a tqdm progress bar
@@ -10,7 +10,7 @@ reps_global = generate_mbdf(mols_charges, mols_coords, local=False) #to get flat
 ```
 `mols_charges` and `mols_coords` should contain charges and coordinates arrays for multiple molecules to make this efficient.
 
-Usage (on the fly with gradients) :
+Usage (on the fly) per molecule :
 
 ```
 from cMBDF import get_convolutions, get_cmbdf
@@ -18,14 +18,9 @@ from cMBDF import get_convolutions, get_cmbdf
 convs = get_convolutions(gradients=True) #only needs to be done once since the convolutions are unique, can also store it as .npy 
 
 pad_size = max([len(q) for q in mols_charges]) #if not provided, defaults to molecule size with no padding
-rep, drep = [], []
-for q,r in zip(mols_charges, mols_coords):
-    r, dr = get_cmbdf(q,r,convs,pad_size,gradients=True)
-    rep.append(r)
-    drep.append(dr)
+rep_list = [get_cmbdf(q,r,convs,pad_size) for q,r in zip(mols_charges, mols_coords)]
 ```
-Note that there is currently some problem in the `get_cmbdf` function which does not allow using `Numba`'s `prange` parallelization option.
-Hence I provide the `generate_mbdf` function which uses `joblib`'s parallelisation. A fix would be appreciated!
+Note that the `get_cmbdf` function does not use parallelization
 
 # References
 Please cite following work :
