@@ -10,7 +10,7 @@ reps_global = generate_mbdf(mols_charges, mols_coords, local=False) #to get flat
 ```
 `mols_charges` and `mols_coords` should contain charges and coordinates arrays for multiple molecules to make this efficient.
 
-Usage (on the fly) per molecule :
+Usage per molecule :
 
 ```
 from cMBDF import get_convolutions, get_cmbdf
