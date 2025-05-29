@@ -20,7 +20,7 @@ convs = get_convolutions(gradients=True) #only needs to be done once since the c
 pad_size = max([len(q) for q in mols_charges]) #if not provided, defaults to molecule size with no padding
 rep_list = [get_cmbdf(q,r,convs,pad_size) for q,r in zip(mols_charges, mols_coords)]
 ```
-Note that the `get_cmbdf` function does not use parallelization
+Note that the `get_cmbdf` function does not use parallelization. Also you can pass an arbitrarily large integer to `pad_size` if you don't know the largest molecule in your dataset. The results and timings are un-affected (except memory requirements due to redundant zeros).
 
 # References
 Please cite following work :
