@@ -17,7 +17,7 @@ Usage per molecule :
 ```
 from cMBDF import get_convolutions, get_cmbdf
 
-convs = get_convolutions(gradients=True) #only needs to be done once since the convolutions are unique, can also store it as .npy 
+convs = get_convolutions() #only needs to be done once since the convolutions are unique, can also store it as .npy 
 
 pad_size = max([len(q) for q in mols_charges]) #if not provided, defaults to molecule size with no padding
 rep_list = [get_cmbdf(q,r,convs,pad_size) for q,r in zip(mols_charges, mols_coords)]
