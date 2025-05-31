@@ -1,5 +1,6 @@
 # cMBDF
 convolutional MBDF via fast fourier transforms
+cMBDF is also implemented in the qml2 library : https://github.com/qml2code/qml2
 
 
 Usage similar to original MBDF (joblib) for entire dataset:
