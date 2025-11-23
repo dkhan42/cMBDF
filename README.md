@@ -31,7 +31,7 @@ Note that the `get_cmbdf` function does not use parallelization. Also you can pa
 # References
 Please cite following work :
 
-1. Danish Khan, O. Anatole von Lilienfeld; Generalized convolutional many body distribution functional representations. Proceedings of the National Academy of Sciences, 122 (41), e2415662122 (2025).
+1. Danish Khan, O. Anatole von Lilienfeld; Generalized convolutional many-body distribution functional representations. Proceedings of the National Academy of Sciences, 122 (41), e2415662122 (2025). https://doi.org/10.1073/pnas.2415662122
 
 
 2. Danish Khan, Stefan Heinen, O. Anatole von Lilienfeld; Kernel based quantum machine learning at record rate: Many-body distribution functionals as compact representations. J. Chem. Phys. 21 July 2023; 159 (3): 034106. https://doi.org/10.1063/5.0152215
