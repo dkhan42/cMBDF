@@ -318,7 +318,7 @@ def generate_data(size,charges,coods,rconvs,aconvs,cutoff_r=12.0,n_atm = 2.0):
     return twob,threeb 
 
 
-def get_cmbdf(charges, coods, convs, pad=None, rcut=10.0,n_atm = 1.0, gradients=False):
+def get_cmbdf(charges, coods, convs, pad=None, rcut=10.0,n_atm = 2.0, gradients=False):
     """"
     returns the local cMBDF representation for a molecule
     """
@@ -350,7 +350,7 @@ def get_cmbdf(charges, coods, convs, pad=None, rcut=10.0,n_atm = 1.0, gradients=
         mat[:size,nr:] = einsum('ijk... -> i...',threeb)
         return mat
     
-def get_cmbdf_global(charges, coods, asize,rep_size,keys, convs, rcut=10.0,n_atm = 1.0):
+def get_cmbdf_global(charges, coods, asize,rep_size,keys, convs, rcut=10.0,n_atm = 2.0):
     """
     returns the flattened, bagged cMBDF feature vector for a molecule
     """
